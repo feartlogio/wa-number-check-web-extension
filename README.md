@@ -110,9 +110,8 @@ Pengguna yang memproses nomor milik sendiri atau kontak dengan izin yang sah.
 
 ```text
 manifest.json       Konfigurasi Chrome Extension Manifest V3 dan default popup
-popup.html          Shell popup dengan halaman QR, input, dan hasil
-popup.css           Tampilan popup
-popup.js            State sesi, routing view, input file, simulasi scan, dan render UI
+popup/              Shell popup, tampilan, state sesi, dan simulasi scan
+icons/              Icon extension SVG dan PNG
 README.md           Dokumen scope ini
 ```
 
