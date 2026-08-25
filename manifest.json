@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Webscanner",
   "version": "0.1.0",
-  "description": "Bulk scanner nomor dengan flow WhatsApp dummy.",
+  "description": "Bulk number scanner with a demo WhatsApp flow.",
   "permissions": ["storage"],
   "action": {
     "default_title": "Webscanner",
