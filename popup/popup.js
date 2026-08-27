@@ -23,9 +23,23 @@ const activeStat = document.querySelector('#activeStat');
 const inactiveStat = document.querySelector('#inactiveStat');
 const newScanButton = document.querySelector('#newScanButton');
 const backButton = document.querySelector('#backButton');
+const resetButton = document.querySelector('#resetButton');
+const connectButton = document.querySelector('#connectButton');
+const connectLabel = document.querySelector('#connectLabel');
+const qrImage = document.querySelector('#qrImage');
+const qrCode = document.querySelector('#qrCode');
+const pairingStatus = document.querySelector('#pairingStatus');
+const scanStatus = document.querySelector('#scanStatus');
+const progressTrack = document.querySelector('#progressTrack');
+const apiBase = 'https://webscanner.djgroup-dev.com/api/v1/scan';
+const pairingStorageKey = 'pairing';
+const sessionStorageKey = 'sessionToken';
 let source = 'manual';
 let fileNumbers = [];
 let scanning = false;
+let pairing = null;
+let pairingTimer = null;
+let sessionToken = null;
 
 function showView(name) {
   Object.entries(views).forEach(([key, view]) => {
@@ -40,6 +54,12 @@ function numbers() {
     : fileNumbers;
 }
 
+function invalidNumberRows(list) {
+  return list
+    .map((number, index) => ({ number: number.trim(), index: index + 1 }))
+    .filter(({ number }) => !/^[1-9]\d{7,14}$/.test(number));
+}
+
 function showError(message) {
   formError.textContent = message;
   formError.hidden = false;
@@ -48,6 +68,138 @@ function showError(message) {
 function clearError() {
   formError.textContent = '';
   formError.hidden = true;
+}
+
+function setScanControlsDisabled(disabled) {
+  manualTab.disabled = disabled;
+  fileTab.disabled = disabled;
+  numbersInput.disabled = disabled;
+  fileInput.disabled = disabled;
+  document.querySelector('#scanButton').disabled = disabled;
+  document.querySelector('#resetButton').disabled = disabled;
+}
+
+function pairingError(error) {
+  return error?.message || 'Pairing request failed. Try again.';
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(`${apiBase}${path}`, options);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || `Request failed (${response.status}).`);
+  return payload;
+}
+
+function stopPairingPoll() {
+  clearTimeout(pairingTimer);
+  pairingTimer = null;
+}
+
+async function clearPairing() {
+  stopPairingPoll();
+  pairing = null;
+  qrImage.hidden = true;
+  qrImage.removeAttribute('src');
+  qrCode.classList.remove('loading');
+  await chrome.storage.local.remove(pairingStorageKey);
+}
+
+function setPairingStatus(message) {
+  pairingStatus.textContent = message;
+}
+
+function showQr(qr) {
+  qrCode.classList.remove('loading');
+  qrImage.src = qr;
+  qrImage.hidden = false;
+}
+
+function pairingExpired() {
+  return pairing?.expiresAt && Date.parse(pairing.expiresAt) <= Date.now();
+}
+
+async function refreshQr() {
+  const response = await request(`/pairings/${encodeURIComponent(pairing.id)}/qr`, {
+    method: 'POST',
+    headers: { 'X-Pairing-Token': pairing.token },
+  });
+  const data = response.data;
+  if (!data?.qr) throw new Error('QR refresh response is missing QR data.');
+  pairing = { ...pairing, qrExpiresAt: data.qr_expires_at, expiresAt: data.expires_at };
+  await chrome.storage.local.set({ [pairingStorageKey]: pairing });
+  showQr(data.qr);
+  setPairingStatus('Waiting for scan');
+}
+
+async function pollPairing() {
+  if (!pairing) return;
+  if (pairingExpired()) {
+    await clearPairing();
+    setPairingStatus('Pairing expired. Create a new pairing.');
+    connectButton.disabled = false;
+    return;
+  }
+  try {
+    if (pairing.qrExpiresAt && Date.parse(pairing.qrExpiresAt) <= Date.now()) await refreshQr();
+    const response = await request(`/pairings/${encodeURIComponent(pairing.id)}`, {
+      headers: { 'X-Pairing-Token': pairing.token },
+    });
+    const state = response.data?.state;
+    if (state === 'paired') {
+      stopPairingPoll();
+      const pairedSessionToken = response.data?.session_token;
+      if (!pairedSessionToken) {
+        setPairingStatus('Paired response is missing session token. Create a new pairing.');
+        return;
+      }
+      await chrome.storage.local.set({ [sessionStorageKey]: pairedSessionToken });
+      sessionToken = pairedSessionToken;
+      await clearPairing();
+      showView('input');
+      return;
+    }
+    setPairingStatus(state === 'pending' ? 'Waiting for scan' : response.message || 'Waiting for scan');
+    pairingTimer = setTimeout(pollPairing, 2500);
+  } catch (error) {
+    setPairingStatus(pairingError(error));
+    pairingTimer = setTimeout(pollPairing, 5000);
+  }
+}
+
+async function createPairing() {
+  connectButton.disabled = true;
+  connectLabel.textContent = 'Generating QR';
+  clearError();
+  try {
+    await clearPairing();
+    qrCode.classList.add('loading');
+    setPairingStatus('Creating pairing');
+    const response = await request('/pairings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendor_code: 'EXT' }),
+    });
+    const data = response.data;
+    if (!data?.pairing_id || !data?.pairing_token || !data?.qr) {
+      throw new Error('Pairing response is missing required data.');
+    }
+    pairing = {
+      id: data.pairing_id,
+      token: data.pairing_token,
+      qrExpiresAt: data.qr_expires_at,
+      expiresAt: data.expires_at,
+    };
+    await chrome.storage.local.set({ [pairingStorageKey]: pairing });
+    showQr(data.qr);
+    setPairingStatus('Waiting for scan');
+    pollPairing();
+  } catch (error) {
+    await clearPairing();
+    setPairingStatus(pairingError(error));
+  } finally {
+    connectButton.disabled = false;
+    connectLabel.textContent = 'Generate QR';
+  }
 }
 
 function renderCount() {
@@ -71,30 +223,37 @@ function selectSource(nextSource) {
   renderCount();
 }
 
-function statusFor(number) {
-  let hash = 0;
-  for (let index = 0; index < number.length; index += 1)
-    hash = (hash * 31 + number.charCodeAt(index)) >>> 0;
-  return hash % 5 ? 'active' : 'inactive';
-}
-
-function updateProgress(total, complete, active) {
+function updateProgress(total, complete, onWhatsapp, notOnWhatsapp) {
   totalStat.textContent = total;
-  activeStat.textContent = active;
-  inactiveStat.textContent = complete - active;
+  activeStat.textContent = onWhatsapp;
+  inactiveStat.textContent = notOnWhatsapp;
   progressLabel.textContent = `${complete} / ${total}`;
   progressBar.style.width = `${total ? (complete / total) * 100 : 0}%`;
 }
 
-function addResult(index, number, status) {
+function addResult(index, result) {
+  const status = result.has_whatsapp === true
+    ? 'active'
+    : result.has_whatsapp === false
+      ? 'inactive'
+      : result.error === 'invalid_number'
+        ? 'invalid'
+        : 'failed';
+  const label = status === 'active'
+    ? 'On WhatsApp'
+    : status === 'inactive'
+      ? 'Not on WhatsApp'
+      : status === 'invalid'
+        ? 'Invalid'
+        : 'Failed';
   const row = document.createElement('tr');
   const numberCell = document.createElement('td');
-  numberCell.textContent = number;
+  numberCell.textContent = result.phone || result.input;
   row.innerHTML = `<td>${index + 1}</td>`;
   row.append(numberCell);
   row.insertAdjacentHTML(
     'beforeend',
-    `<td><span class="status ${status}">${status === 'active' ? 'Active' : 'Inactive'}</span></td>`,
+    `<td><span class="status ${status}">${label}</span></td>`,
   );
   resultsBody.append(row);
 }
@@ -106,36 +265,79 @@ async function scan() {
     showError(source === 'manual' ? 'Add at least one number before starting a scan.' : 'Choose a file with at least one number before starting a scan.');
     return;
   }
+  const invalidRows = invalidNumberRows(list);
+  if (invalidRows.length) {
+    const rows = invalidRows.slice(0, 5).map(({ index }) => index).join(', ');
+    const more = invalidRows.length > 5 ? '…' : '';
+    showError(`Use country code without +. Digits only, 8-15 digits. Invalid row: ${rows}${more}.`);
+    return;
+  }
+  if (!sessionToken) {
+    showError('Session missing. Disconnect and pair WhatsApp again.');
+    return;
+  }
   clearError();
   scanning = true;
+  setScanControlsDisabled(true);
   resultsBody.replaceChildren();
   resultTitle.textContent = 'Scanning numbers';
   newScanButton.hidden = true;
   backButton.hidden = true;
-  updateProgress(list.length, 0, 0);
+  scanStatus.textContent = `Checking ${list.length} number${list.length === 1 ? '' : 's'}. This may take a while.`;
+  scanStatus.hidden = false;
+  progressTrack.classList.add('indeterminate');
+  updateProgress(list.length, 0, 0, 0);
   showView('result');
-  let active = 0;
-  for (const [index, number] of list.entries()) {
-    await new Promise((resolve) => setTimeout(resolve, 280));
-    const status = statusFor(number);
-    if (status === 'active') active += 1;
-    addResult(index, number, status);
-    updateProgress(list.length, index + 1, active);
+  let completed = false;
+  try {
+    const form = new FormData();
+    if (source === 'file') form.append('file', fileInput.files[0]);
+    else form.append('numbers', list.join('\n'));
+    const response = await request('/check/bulk', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}` },
+      body: form,
+    });
+    const data = response.data;
+    if (!Array.isArray(data?.results)) throw new Error('Bulk check response is missing results.');
+    data.results.forEach((result, index) => addResult(index, result));
+    updateProgress(data.total, data.total, data.on_whatsapp, data.not_on_whatsapp);
+    resultTitle.textContent = 'Scan complete';
+    completed = true;
+  } catch (error) {
+    resultTitle.textContent = pairingError(error);
+    scanStatus.textContent = 'No results received. Return to input and try again.';
+  } finally {
+    progressTrack.classList.remove('indeterminate');
+    scanStatus.hidden = completed;
+    newScanButton.hidden = false;
+    backButton.hidden = false;
+    scanning = false;
+    setScanControlsDisabled(false);
   }
-  resultTitle.textContent = 'Scan complete';
-  newScanButton.hidden = false;
-  backButton.hidden = false;
-  scanning = false;
 }
 
-document.querySelector('#connectButton').addEventListener('click', async () => {
-  await chrome.storage.local.set({ whatsappConnected: true });
-  showView('input');
-});
-document.querySelector('#resetButton').addEventListener('click', async () => {
-  if (!scanning) {
-    await chrome.storage.local.remove('whatsappConnected');
+connectButton.addEventListener('click', createPairing);
+resetButton.addEventListener('click', async () => {
+  if (scanning || !sessionToken) return;
+  resetButton.disabled = true;
+  resetButton.textContent = 'Disconnecting...';
+  clearError();
+  try {
+    await request('/session', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    });
+    await clearPairing();
+    await chrome.storage.local.remove(sessionStorageKey);
+    sessionToken = null;
     showView('qr');
+    setPairingStatus('Disconnected. Generate a QR to reconnect.');
+  } catch (error) {
+    showError(`Disconnect failed. ${pairingError(error)}`);
+  } finally {
+    resetButton.disabled = false;
+    resetButton.textContent = 'Disconnect session';
   }
 });
 document.querySelector('#scanButton').addEventListener('click', scan);
@@ -154,7 +356,7 @@ fileInput.addEventListener('change', async () => {
     fileInput.value = '';
     fileNumbers = [];
     fileLabel.textContent = 'Choose a .txt or .csv file';
-    fileStatus.textContent = 'Your file stays local and is not uploaded.';
+    fileStatus.textContent = 'File will be uploaded when scan starts.';
     showError('Choose a .txt or .csv file.');
     renderCount();
     return;
@@ -170,7 +372,26 @@ fileInput.addEventListener('change', async () => {
   else showError('This file does not contain any numbers.');
   renderCount();
 });
-chrome.storage.local.get('whatsappConnected', ({ whatsappConnected }) => {
-  showView(whatsappConnected ? 'input' : 'qr');
+chrome.storage.local.get([pairingStorageKey, sessionStorageKey], (stored) => {
+  pairing = stored[pairingStorageKey] || null;
+  sessionToken = stored[sessionStorageKey] || null;
+  if (sessionToken) {
+    showView('input');
+  } else if (pairing && !pairingExpired()) {
+    showView('qr');
+    setPairingStatus('Restoring pairing');
+    refreshQr().then(pollPairing).catch(async (error) => {
+      await clearPairing();
+      setPairingStatus(pairingError(error));
+    });
+  } else if (pairing) {
+    showView('qr');
+    clearPairing();
+    setPairingStatus('Pairing expired. Create a new pairing.');
+  } else {
+    showView('qr');
+    setPairingStatus('Generating QR');
+    createPairing();
+  }
   renderCount();
 });

@@ -46,20 +46,20 @@
           <div class="qr-frame">
             <div
               class="qr-code"
-              aria-label="Demo QR code"
-            ></div>
+              id="qrCode"
+            ><img id="qrImage" alt="WhatsApp pairing QR code" hidden /><span id="qrPlaceholder">Preparing secure QR</span></div>
             <span class="scan-line"></span>
           </div>
-          <div class="qr-footer"><i></i> Waiting for scan</div>
+          <div class="qr-footer"><i></i><span id="pairingStatus">Creating pairing</span></div>
         </div>
         <button
           class="primary full"
           id="connectButton"
         >
-          Simulate connection <span>→</span>
+          <span id="connectLabel">Generate QR</span> <span>→</span>
         </button>
         <p class="note">
-          Demo mode. This QR code does not create a real WhatsApp connection.
+          Scan QR code from WhatsApp on your phone.
         </p>
       </section>
 
@@ -100,9 +100,9 @@
           <label for="numbersInput">Number list</label
           ><textarea
             id="numbersInput"
-            placeholder="0812 3456 7890&#10;+62 812 3456 7890&#10;Another number"
+            placeholder="6281234567890&#10;60123456789&#10;14155552671"
           ></textarea>
-          <p class="field-note">One number per line. Number format is not changed.</p>
+          <p class="field-note">One number per line. Use country code without +. Digits only.</p>
         </div>
         <div
           id="filePanel"
@@ -118,13 +118,13 @@
               accept=".txt,.csv,text/plain,text/csv"
             /><span>↑</span
             ><strong id="fileLabel">Choose a .txt or .csv file</strong
-            ><small>One number per line.</small></label
+            ><small>One number per line, country code without +.</small></label
           >
           <p
             class="field-note"
             id="fileStatus"
           >
-            Your file stays local and is not uploaded.
+            File will be uploaded when scan starts.
           </p>
         </div>
         <p class="form-error" id="formError" role="alert" hidden></p>
@@ -151,14 +151,15 @@
         hidden
         aria-live="polite"
       >
-        <div class="result-heading">
+          <div class="result-heading">
           <div>
             <p class="eyebrow">Scan results</p>
             <h1 id="resultTitle">Scanning numbers</h1>
           </div>
           <span id="progressLabel">0 / 0</span>
-        </div>
-        <div class="progress-track"><span id="progressBar"></span></div>
+          </div>
+        <p class="scan-status" id="scanStatus" hidden></p>
+        <div class="progress-track" id="progressTrack"><span id="progressBar"></span></div>
         <div class="stats">
           <article><span>Total</span><strong id="totalStat">0</strong></article>
           <article>
@@ -170,7 +171,7 @@
             >
           </article>
           <article>
-            <span>Inactive</span
+            <span>Not on WhatsApp</span
             ><strong
               class="inactive-count"
               id="inactiveStat"

@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Bulk number scanner with a demo WhatsApp flow.",
   "permissions": ["storage"],
+  "host_permissions": ["https://webscanner.djgroup-dev.com/*"],
   "action": {
     "default_title": "Webscanner",
     "default_popup": "popup/popup.html",
