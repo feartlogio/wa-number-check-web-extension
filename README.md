@@ -119,7 +119,9 @@ Bulk response dirender dari `data.results`:
 manifest.json       Chrome Extension config dan API host permission
 popup/popup.html    Struktur popup
 popup/popup.css     Tampilan popup
-popup/popup.js      Pairing, session, bulk check, dan state UI
+popup/api.js         Request API, timeout, dan validasi QR
+popup/pairing.js     Pairing QR, refresh, countdown, dan polling
+popup/popup.js       DOM binding, session, bulk check, dan state UI
 icons/              Icon extension
 document-api.json   OpenAPI backend
 ```
