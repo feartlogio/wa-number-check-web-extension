@@ -4,6 +4,7 @@ const views = {
   result: document.querySelector('#resultView'),
 };
 const connectionBadge = document.querySelector('#connectionBadge');
+const connectionLabel = document.querySelector('#connectionLabel');
 const numbersInput = document.querySelector('#numbersInput');
 const fileInput = document.querySelector('#fileInput');
 const fileLabel = document.querySelector('#fileLabel');
@@ -54,7 +55,17 @@ function showView(name) {
   Object.entries(views).forEach(([key, view]) => {
     view.hidden = key !== name;
   });
-  connectionBadge.hidden = !sessionToken;
+  connectionBadge.hidden = false;
+}
+
+function setConnectionStatus(status) {
+  connectionLabel.textContent = status === 'linked'
+    ? 'WhatsApp linked'
+    : status === 'checking'
+      ? 'Checking session'
+      : 'WhatsApp not connected';
+  connectionBadge.classList.toggle('checking', status === 'checking');
+  connectionBadge.classList.toggle('disconnected', status === 'disconnected');
 }
 
 function numbers() {
@@ -214,6 +225,7 @@ async function pollPairing() {
       }
       await chrome.storage.local.set({ [sessionStorageKey]: pairedSessionToken });
       sessionToken = pairedSessionToken;
+      setConnectionStatus('linked');
       await clearPairing();
       showView('input');
       return;
@@ -381,7 +393,7 @@ async function scan() {
     if (error.status === 401 || error.status === 403) {
       await chrome.storage.local.remove(sessionStorageKey);
       sessionToken = null;
-      connectionBadge.hidden = true;
+      setConnectionStatus('disconnected');
       bulkErrorMessage.textContent = 'WhatsApp session expired. Connect again.';
       retryButton.textContent = 'Connect again';
     } else {
@@ -415,6 +427,7 @@ resetButton.addEventListener('click', async () => {
     await clearPairing();
     await chrome.storage.local.remove(sessionStorageKey);
     sessionToken = null;
+    setConnectionStatus('disconnected');
     showView('qr');
     setPairingStatus('Generating QR');
     createPairing();
@@ -471,20 +484,24 @@ chrome.storage.local.get([pairingStorageKey, sessionStorageKey], async (stored) 
   sessionToken = stored[sessionStorageKey] || null;
   if (sessionToken) {
     const storedSessionToken = sessionToken;
-    sessionToken = null;
-    showView('qr');
-    setPairingStatus('Checking WhatsApp session');
+    showView('input');
+    setConnectionStatus('checking');
     try {
       await request('/session', { headers: { Authorization: `Bearer ${storedSessionToken}` } });
-      sessionToken = storedSessionToken;
-      showView('input');
-    } catch {
-      await chrome.storage.local.remove(sessionStorageKey);
-      setPairingStatus('Generating QR');
-      createPairing();
+      setConnectionStatus('linked');
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) {
+        await chrome.storage.local.remove(sessionStorageKey);
+        sessionToken = null;
+        setConnectionStatus('disconnected');
+        showView('qr');
+        setPairingStatus('Generating QR');
+        createPairing();
+      }
     }
   } else if (pairing && !pairingExpired()) {
     showView('qr');
+    setConnectionStatus('disconnected');
     setPairingStatus('Restoring pairing');
     if (pairing.qr && pairing.qrExpiresAt && Date.parse(pairing.qrExpiresAt) > Date.now()) {
       showQr(pairing.qr);
@@ -498,10 +515,12 @@ chrome.storage.local.get([pairingStorageKey, sessionStorageKey], async (stored) 
     }
   } else if (pairing) {
     showView('qr');
+    setConnectionStatus('disconnected');
     clearPairing();
     setPairingStatus('Pairing expired. Create a new pairing.');
   } else {
     showView('qr');
+    setConnectionStatus('disconnected');
     setPairingStatus('Generating QR');
     createPairing();
   }

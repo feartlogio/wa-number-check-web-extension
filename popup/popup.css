@@ -13,7 +13,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .brand-mark { width: 19px; height: 19px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; transform: rotate(-7deg); }
 .brand-mark i { background: #2e7064; border-radius: 2px; }
 .brand-mark i:nth-child(2) { background: #a4ca5a; }.brand-mark i:nth-child(3) { background: #bfdc8a; }.brand-mark i:nth-child(4) { background: #1d4e47; }
-.connection { display: flex; align-items: center; gap: 6px; color: #286154; background: #e5f1e9; border-radius: 20px; padding: 6px 9px; font-size: 11px; font-weight: 700; }
+.connection { display: flex; align-items: center; gap: 6px; color: #286154; background: #e5f1e9; border-radius: 20px; padding: 6px 9px; font-size: 11px; font-weight: 700; }.connection.disconnected { color: #697672; background: #edf0ed; }.connection.disconnected i { background: #98a39f; box-shadow: none; }.connection.checking { color: #7c651f; background: #f6f0da; }.connection.checking i { background: #c99f38; box-shadow: 0 0 0 3px #efe2b5; }
 .connection i, .qr-footer i { width: 6px; height: 6px; border-radius: 50%; background: #58a472; display: inline-block; }
 .connection i { box-shadow: 0 0 0 3px #c8e4d0; }
 .view { padding-top: 28px; }.view:not([hidden]) { animation: view-in .32s cubic-bezier(.2,.8,.2,1); }@keyframes view-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
