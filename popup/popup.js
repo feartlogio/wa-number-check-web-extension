@@ -341,6 +341,17 @@ function addResult(index, result) {
   resultsBody.append(row);
 }
 
+function startNewScan() {
+  numbersInput.value = '';
+  fileInput.value = '';
+  fileNumbers = [];
+  fileLabel.textContent = 'Choose a .txt or .csv file';
+  fileStatus.textContent = 'File will be uploaded when scan starts.';
+  selectSource('manual');
+  renderCount();
+  showView('input');
+}
+
 async function scan() {
   const list = numbers();
   if (scanning) return;
@@ -439,8 +450,8 @@ resetButton.addEventListener('click', async () => {
   }
 });
 document.querySelector('#scanButton').addEventListener('click', scan);
-newScanButton.addEventListener('click', () => showView('input'));
-backButton.addEventListener('click', () => showView('input'));
+newScanButton.addEventListener('click', scan);
+backButton.addEventListener('click', startNewScan);
 retryButton.addEventListener('click', () => {
   if (sessionToken) {
     showView('input');
