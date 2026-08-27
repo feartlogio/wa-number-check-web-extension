@@ -61,7 +61,7 @@ Extension mengirim `multipart/form-data` dengan field `numbers` ke bulk endpoint
 
 - Format: `.txt` atau `.csv`.
 - Maksimal: 2 MB.
-- Satu nomor per baris.
+- Satu nomor per baris. Header pertama `phone` boleh dipakai.
 - File diupload hanya saat scan dimulai.
 
 ## API
@@ -109,7 +109,7 @@ Bulk response dirender dari `data.results`:
 ## Batasan
 
 - Batas jumlah nomor bulk belum diketahui dari backend. Extension belum menerapkan client cap.
-- CSV hanya satu nomor per baris. Header, quoted field, dan multi-kolom tidak diparse.
+- CSV hanya satu nomor per baris. Header pertama `phone` didukung; quoted field dan multi-kolom tidak diparse.
 - Tidak ada ekspor hasil, riwayat scan, atau pembatalan bulk check.
 - Progress bulk bersifat indeterminate sampai backend mengembalikan respons final.
 

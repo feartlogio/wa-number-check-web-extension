@@ -301,7 +301,9 @@ fileInput.addEventListener('change', async () => {
     renderCount();
     return;
   }
-  fileNumbers = (await file.text()).split(/\r?\n/).filter((value) => value.trim());
+  fileNumbers = (await file.text())
+    .split(/\r?\n/)
+    .filter((value, index) => value.trim() && (index || value.trim().toLowerCase() !== 'phone'));
   fileLabel.textContent = file.name;
   fileStatus.textContent = fileNumbers.length ? `${fileNumbers.length} number${fileNumbers.length === 1 ? '' : 's'} found in this file.` : 'No numbers found in this file.';
   if (fileNumbers.length) clearError();
