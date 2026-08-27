@@ -118,7 +118,7 @@
               id="fileInput"
               type="file"
               accept=".txt,.csv,text/plain,text/csv"
-            /><span>↑</span
+            /><span class="dropzone-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7 8m5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span
             ><strong id="fileLabel">Choose a .txt or .csv file</strong
             ><small>One number per line, country code without +.</small></label
           >
@@ -136,7 +136,7 @@
             class="primary"
             id="scanButton"
           >
-            Start scan <span>→</span>
+            Start scan <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 15 5 5m-9-3a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
           </button>
         </div>
         <button
@@ -166,7 +166,7 @@
           <p id="scanStatus"></p>
         </div>
         <div class="bulk-error" id="bulkError" hidden>
-          <span aria-hidden="true">!</span>
+          <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5m0 3h.01M4.9 19h14.2c1.1 0 1.8-1.2 1.3-2.1l-7.1-12.3c-.5-.9-1.8-.9-2.3 0L3.8 16.9c-.5.9.2 2.1 1.1 2.1Z"/></svg></span>
           <strong>Check failed</strong>
           <p id="bulkErrorMessage"></p>
           <button class="primary" id="retryButton">Back to input</button>
@@ -210,14 +210,14 @@
           id="newScanButton"
           hidden
         >
-          New scan <span>→</span>
+          New scan <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.5M20 4v7h-7"/></svg>
         </button>
         <button
           class="text-button"
           id="backButton"
           hidden
         >
-          ← Back to input
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h11"/></svg> Back to input
         </button>
       </section>
     </main>
