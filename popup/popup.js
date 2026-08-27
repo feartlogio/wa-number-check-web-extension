@@ -47,7 +47,7 @@ function showView(name) {
   Object.entries(views).forEach(([key, view]) => {
     view.hidden = key !== name;
   });
-  connectionBadge.hidden = name === 'qr';
+  connectionBadge.hidden = !sessionToken;
 }
 
 function numbers() {
@@ -374,11 +374,23 @@ fileInput.addEventListener('change', async () => {
   else showError('This file does not contain any numbers.');
   renderCount();
 });
-chrome.storage.local.get([pairingStorageKey, sessionStorageKey], (stored) => {
+chrome.storage.local.get([pairingStorageKey, sessionStorageKey], async (stored) => {
   pairing = stored[pairingStorageKey] || null;
   sessionToken = stored[sessionStorageKey] || null;
   if (sessionToken) {
-    showView('input');
+    const storedSessionToken = sessionToken;
+    sessionToken = null;
+    showView('qr');
+    setPairingStatus('Checking WhatsApp session');
+    try {
+      await request('/session', { headers: { Authorization: `Bearer ${storedSessionToken}` } });
+      sessionToken = storedSessionToken;
+      showView('input');
+    } catch {
+      await chrome.storage.local.remove(sessionStorageKey);
+      setPairingStatus('Generating QR');
+      createPairing();
+    }
   } else if (pairing && !pairingExpired()) {
     showView('qr');
     setPairingStatus('Restoring pairing');
