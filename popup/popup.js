@@ -30,6 +30,8 @@ const qrImage = document.querySelector('#qrImage');
 const qrCode = document.querySelector('#qrCode');
 const pairingStatus = document.querySelector('#pairingStatus');
 const scanStatus = document.querySelector('#scanStatus');
+const bulkLoading = document.querySelector('#bulkLoading');
+const scanData = document.querySelector('#scanData');
 const progressTrack = document.querySelector('#progressTrack');
 const apiBase = 'https://webscanner.djgroup-dev.com/api/v1/scan';
 const pairingStorageKey = 'pairing';
@@ -283,12 +285,12 @@ async function scan() {
   resultTitle.textContent = 'Scanning numbers';
   newScanButton.hidden = true;
   backButton.hidden = true;
-  scanStatus.textContent = `Checking ${list.length} number${list.length === 1 ? '' : 's'}. This may take a while.`;
-  scanStatus.hidden = false;
+  scanStatus.textContent = `Checking ${list.length} number${list.length === 1 ? '' : 's'} with WhatsApp. This may take a while.`;
+  bulkLoading.hidden = false;
+  scanData.hidden = true;
   progressTrack.classList.add('indeterminate');
   updateProgress(list.length, 0, 0, 0);
   showView('result');
-  let completed = false;
   try {
     const form = new FormData();
     if (source === 'file') form.append('file', fileInput.files[0]);
@@ -303,13 +305,12 @@ async function scan() {
     data.results.forEach((result, index) => addResult(index, result));
     updateProgress(data.total, data.total, data.on_whatsapp, data.not_on_whatsapp);
     resultTitle.textContent = 'Scan complete';
-    completed = true;
   } catch (error) {
     resultTitle.textContent = pairingError(error);
-    scanStatus.textContent = 'No results received. Return to input and try again.';
   } finally {
     progressTrack.classList.remove('indeterminate');
-    scanStatus.hidden = completed;
+    bulkLoading.hidden = true;
+    scanData.hidden = false;
     newScanButton.hidden = false;
     backButton.hidden = false;
     scanning = false;
@@ -332,7 +333,8 @@ resetButton.addEventListener('click', async () => {
     await chrome.storage.local.remove(sessionStorageKey);
     sessionToken = null;
     showView('qr');
-    setPairingStatus('Disconnected. Generate a QR to reconnect.');
+    setPairingStatus('Generating QR');
+    createPairing();
   } catch (error) {
     showError(`Disconnect failed. ${pairingError(error)}`);
   } finally {
