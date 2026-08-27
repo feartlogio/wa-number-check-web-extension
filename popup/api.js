@@ -16,6 +16,7 @@ export async function request(path, { timeout = 15000, ...options } = {}) {
   if (!response.ok) {
     const error = new Error(payload.message || `Request failed (${response.status}).`);
     error.status = response.status;
+    error.code = payload.data?.code;
     throw error;
   }
   return payload;

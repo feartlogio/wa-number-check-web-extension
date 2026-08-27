@@ -8,6 +8,8 @@ const views = {
 };
 const connectionBadge = document.querySelector('#connectionBadge');
 const connectionLabel = document.querySelector('#connectionLabel');
+const toast = document.querySelector('#toast');
+const toastMessage = document.querySelector('#toastMessage');
 const numbersInput = document.querySelector('#numbersInput');
 const fileInput = document.querySelector('#fileInput');
 const fileLabel = document.querySelector('#fileLabel');
@@ -48,6 +50,7 @@ let source = 'manual';
 let fileNumbers = [];
 let scanning = false;
 let sessionToken = null;
+let toastTimer = null;
 
 function showView(name) {
   Object.entries(views).forEach(([key, view]) => {
@@ -64,6 +67,16 @@ function setConnectionStatus(status) {
       : 'WhatsApp not connected';
   connectionBadge.classList.toggle('checking', status === 'checking');
   connectionBadge.classList.toggle('disconnected', status === 'disconnected');
+}
+
+function showToast(message, type = 'connected') {
+  clearTimeout(toastTimer);
+  toastMessage.textContent = message;
+  toast.classList.toggle('disconnected', type === 'disconnected');
+  toast.hidden = false;
+  toastTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 5000);
 }
 
 function showError(message) {
@@ -124,6 +137,7 @@ const pairing = createPairingController(pairingUi(), async (token) => {
   await chrome.storage.local.set({ [sessionStorageKey]: token });
   sessionToken = token;
   setConnectionStatus('linked');
+  showToast('WhatsApp connected. You can scan numbers now.');
   showView('input');
 });
 
@@ -231,7 +245,15 @@ async function scan() {
     updateProgress(data.total, data.total, data.on_whatsapp, data.not_on_whatsapp);
     resultTitle.textContent = 'Scan complete';
   } catch (error) {
-    if (error.status === 401 || error.status === 403) {
+    if ((error.status === 409 && error.code === 'device_unlinked') || (error.status === 401 && error.code === 'unauthenticated')) {
+      await chrome.storage.local.remove(sessionStorageKey);
+      sessionToken = null;
+      setConnectionStatus('disconnected');
+      showToast('WhatsApp disconnected. Scan QR to reconnect.', 'disconnected');
+      showView('qr');
+      pairing.create();
+      return;
+    } else if (error.status === 401 || error.status === 403) {
       await chrome.storage.local.remove(sessionStorageKey);
       sessionToken = null;
       setConnectionStatus('disconnected');
