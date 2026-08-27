@@ -29,6 +29,7 @@ const connectLabel = document.querySelector('#connectLabel');
 const qrImage = document.querySelector('#qrImage');
 const qrCode = document.querySelector('#qrCode');
 const pairingStatus = document.querySelector('#pairingStatus');
+const qrCountdown = document.querySelector('#qrCountdown');
 const scanStatus = document.querySelector('#scanStatus');
 const bulkLoading = document.querySelector('#bulkLoading');
 const scanData = document.querySelector('#scanData');
@@ -41,6 +42,7 @@ let fileNumbers = [];
 let scanning = false;
 let pairing = null;
 let pairingTimer = null;
+let qrTimer = null;
 let sessionToken = null;
 
 function showView(name) {
@@ -97,8 +99,15 @@ function stopPairingPoll() {
   pairingTimer = null;
 }
 
+function stopQrTimer() {
+  clearInterval(qrTimer);
+  qrTimer = null;
+  qrCountdown.hidden = true;
+}
+
 async function clearPairing() {
   stopPairingPoll();
+  stopQrTimer();
   pairing = null;
   qrImage.hidden = true;
   qrImage.removeAttribute('src');
@@ -116,6 +125,23 @@ function showQr(qr) {
   qrImage.hidden = false;
 }
 
+function updateQrCountdown() {
+  const seconds = Math.max(0, Math.ceil((Date.parse(pairing?.qrExpiresAt) - Date.now()) / 1000));
+  qrCountdown.textContent = `Expires ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  qrCountdown.hidden = false;
+  if (seconds || !pairing) return;
+  stopQrTimer();
+  setPairingStatus('Refreshing QR');
+  refreshQr().catch((error) => setPairingStatus(pairingError(error)));
+}
+
+function startQrTimer() {
+  stopQrTimer();
+  if (!pairing?.qrExpiresAt) return;
+  updateQrCountdown();
+  qrTimer = setInterval(updateQrCountdown, 1000);
+}
+
 function pairingExpired() {
   return pairing?.expiresAt && Date.parse(pairing.expiresAt) <= Date.now();
 }
@@ -127,10 +153,11 @@ async function refreshQr() {
   });
   const data = response.data;
   if (!data?.qr) throw new Error('QR refresh response is missing QR data.');
-  pairing = { ...pairing, qrExpiresAt: data.qr_expires_at, expiresAt: data.expires_at };
+  pairing = { ...pairing, qr: data.qr, qrExpiresAt: data.qr_expires_at, expiresAt: data.expires_at };
   await chrome.storage.local.set({ [pairingStorageKey]: pairing });
   showQr(data.qr);
   setPairingStatus('Waiting for scan');
+  startQrTimer();
 }
 
 async function pollPairing() {
@@ -160,11 +187,20 @@ async function pollPairing() {
       showView('input');
       return;
     }
+    if (response.data?.qr_expires_at) {
+      pairing = {
+        ...pairing,
+        qrExpiresAt: response.data.qr_expires_at,
+        expiresAt: response.data.expires_at || pairing.expiresAt,
+      };
+      await chrome.storage.local.set({ [pairingStorageKey]: pairing });
+      startQrTimer();
+    }
     setPairingStatus(state === 'pending' ? 'Waiting for scan' : response.message || 'Waiting for scan');
-    pairingTimer = setTimeout(pollPairing, 2500);
+    pairingTimer = setTimeout(pollPairing, 10000);
   } catch (error) {
     setPairingStatus(pairingError(error));
-    pairingTimer = setTimeout(pollPairing, 5000);
+    pairingTimer = setTimeout(pollPairing, 10000);
   }
 }
 
@@ -188,12 +224,14 @@ async function createPairing() {
     pairing = {
       id: data.pairing_id,
       token: data.pairing_token,
+      qr: data.qr,
       qrExpiresAt: data.qr_expires_at,
       expiresAt: data.expires_at,
     };
     await chrome.storage.local.set({ [pairingStorageKey]: pairing });
     showQr(data.qr);
     setPairingStatus('Waiting for scan');
+    startQrTimer();
     pollPairing();
   } catch (error) {
     await clearPairing();
@@ -394,10 +432,16 @@ chrome.storage.local.get([pairingStorageKey, sessionStorageKey], async (stored) 
   } else if (pairing && !pairingExpired()) {
     showView('qr');
     setPairingStatus('Restoring pairing');
-    refreshQr().then(pollPairing).catch(async (error) => {
-      await clearPairing();
-      setPairingStatus(pairingError(error));
-    });
+    if (pairing.qr && pairing.qrExpiresAt && Date.parse(pairing.qrExpiresAt) > Date.now()) {
+      showQr(pairing.qr);
+      startQrTimer();
+      pollPairing();
+    } else {
+      refreshQr().then(pollPairing).catch(async (error) => {
+        await clearPairing();
+        setPairingStatus(pairingError(error));
+      });
+    }
   } else if (pairing) {
     showView('qr');
     clearPairing();
