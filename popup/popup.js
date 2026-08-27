@@ -10,6 +10,7 @@ const connectionBadge = document.querySelector('#connectionBadge');
 const connectionLabel = document.querySelector('#connectionLabel');
 const toast = document.querySelector('#toast');
 const toastMessage = document.querySelector('#toastMessage');
+const toastClose = document.querySelector('#toastClose');
 const numbersInput = document.querySelector('#numbersInput');
 const fileInput = document.querySelector('#fileInput');
 const fileLabel = document.querySelector('#fileLabel');
@@ -73,10 +74,20 @@ function showToast(message, type = 'connected') {
   clearTimeout(toastTimer);
   toastMessage.textContent = message;
   toast.classList.toggle('disconnected', type === 'disconnected');
+  toast.classList.remove('is-leaving');
   toast.hidden = false;
-  toastTimer = setTimeout(() => {
+  toastTimer = setTimeout(hideToast, 5000);
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  if (toast.hidden || toast.classList.contains('is-leaving')) return;
+  toast.classList.add('is-leaving');
+  toast.addEventListener('animationend', () => {
+    if (!toast.classList.contains('is-leaving')) return;
     toast.hidden = true;
-  }, 5000);
+    toast.classList.remove('is-leaving');
+  }, { once: true });
 }
 
 function showError(message) {
@@ -277,6 +288,7 @@ async function scan() {
 }
 
 connectButton.addEventListener('click', () => pairing.create());
+toastClose.addEventListener('click', hideToast);
 resetButton.addEventListener('click', async () => {
   if (scanning || !sessionToken) return;
   resetButton.disabled = true;
