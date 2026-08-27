@@ -1,180 +1,125 @@
-# WhatsApp Number Scanner Extension
+# Webscanner Extension
 
-Dokumen scope untuk Chrome Extension lokal dengan flow dummy. Produk akhir akan memakai backend untuk QR WhatsApp dan proses scan. Versi awal tidak terhubung ke WhatsApp atau backend.
+Chrome Extension Manifest V3 untuk pairing WhatsApp via QR dan bulk number check melalui Webscanner API.
 
-## Tujuan
+## Fitur
 
-Membuat Chrome Extension Manifest V3 untuk:
+- Pairing WhatsApp memakai QR dari backend.
+- Refresh QR otomatis sebelum `qr_expires_at`.
+- Poll status pairing setiap 3 detik sampai backend mengembalikan `session_token`.
+- Simpan session token di `chrome.storage.local`; popup ditutup tidak logout.
+- Disconnect memakai endpoint backend, lalu membuat pairing QR baru.
+- Check nomor lewat input manual atau file `.txt`/`.csv`.
+- Bulk check memakai loading state, hasil per nomor, statistik, error state, dan re-scan.
+- Validasi nomor: country code tanpa `+`, digit saja, 8-15 digit.
 
-- Menampilkan flow koneksi WhatsApp melalui QR.
-- Menerima banyak nomor lewat input manual atau file lokal.
-- Menjalankan simulasi scan nomor.
-- Menampilkan progres dan statistik nomor aktif atau tidak aktif.
-- Menyimpan status koneksi secara lokal saat halaman ditutup atau dibuka ulang.
+## Jalankan
 
-## Target Pengguna
+1. Buka `chrome://extensions`.
+2. Aktifkan Developer mode.
+3. Pilih **Load unpacked**.
+4. Pilih root repository ini.
+5. Klik icon Webscanner di toolbar.
 
-Pengguna yang memproses nomor milik sendiri atau kontak dengan izin yang sah.
+Setelah perubahan source, klik reload pada kartu extension di `chrome://extensions`.
 
-## Ruang Lingkup Versi Dummy
+## Flow Pairing
 
-### Teknologi
+1. Popup tanpa session membuat pairing baru dengan vendor code `EXT`.
+2. Backend mengembalikan `pairing_id`, `pairing_token`, QR, `qr_expires_at`, dan `expires_at`.
+3. Extension menampilkan QR dan countdown expiry.
+4. Extension refresh QR tiga detik sebelum expiry.
+5. Extension meminta status pairing setiap tiga detik.
+6. Saat status `paired`, extension menyimpan `session_token` dan membuka halaman number check.
+7. Saat **Disconnect session**, extension memanggil backend logout, menghapus token lokal setelah sukses, lalu membuat QR baru.
 
-- Chrome Extension Manifest V3.
-- Vanilla HTML, CSS, dan JavaScript.
-- Tanpa framework dan dependency pihak ketiga.
-- `chrome.storage.local` untuk menyimpan status sesi dummy.
-- Popup overlay saat pengguna klik ikon extension.
-- Halaman penuh dapat ditambahkan kemudian sebagai opsi untuk batch besar.
+## Number Check
 
-### Flow Aplikasi
+### Format Nomor
 
-1. Pengguna klik ikon extension.
-2. Extension membuka popup overlay browser.
-3. Jika status sesi lokal belum terhubung, popup tampil halaman login QR dummy.
-4. Pengguna klik `Simulasikan Terhubung`.
-5. Extension menyimpan status `connected` pada `chrome.storage.local`.
-6. Pengguna masuk ke halaman input scan.
-7. Pengguna memilih sumber nomor: input manual atau upload file.
-8. Pengguna memulai scan dummy.
-9. Popup berpindah ke halaman hasil, lalu memproses nomor satu per satu dan menampilkan statistik.
-10. Status koneksi tetap tersimpan sampai pengguna menekan reset sesi.
-
-### Login QR Dummy
-
-- QR hanya gambar atau pola statis untuk representasi UI.
-- Tidak membuat sesi WhatsApp.
-- Tidak memindai QR dari kamera.
-- Tombol simulasi menggantikan proses sukses autentikasi.
-- Tombol reset sesi menghapus status koneksi lokal dan kembali ke halaman QR.
-
-### Sumber Nomor
-
-#### Input Manual
-
-- Textarea menerima satu nomor per baris.
-- Nomor dipakai persis seperti input pengguna.
-- Baris kosong diabaikan.
-- Nomor duplikat tetap diproses sebagai baris terpisah pada versi dummy.
-
-#### Upload File
-
-- Terima file `.txt` dan `.csv`.
-- File dibaca di browser memakai `FileReader`; file tidak diunggah ke mana pun pada versi dummy.
-- Setiap baris diperlakukan sebagai satu nilai nomor.
-- CSV belum memahami header, quoted field, atau banyak kolom. File CSV versi dummy harus berisi satu nomor per baris.
-- Baris kosong diabaikan.
-
-### Scan Dummy
-
-- Tidak menghubungi WhatsApp, API, atau backend.
-- Nomor diproses berurutan dengan jeda singkat untuk menampilkan progres.
-- Hasil setiap nomor berupa `Aktif` atau `Tidak Aktif`.
-- Status dummy harus deterministik berdasarkan isi nomor. Input sama menghasilkan status sama saat dipindai ulang.
-- Bila input kosong, tombol scan tidak menjalankan proses dan UI menampilkan pesan validasi.
-
-### Hasil dan Statistik
-
-- Tampilkan progres: jumlah selesai dari total nomor dan persentase.
-- Tampilkan tabel hasil selama scan berjalan.
-- Kolom minimum: nomor, status, dan urutan.
-- Tampilkan statistik minimum:
-  - Total nomor.
-  - Nomor aktif.
-  - Nomor tidak aktif.
-  - Nomor selesai diproses.
-- Hasil hanya hidup di halaman saat ini. Refresh halaman menghapus hasil scan.
-
-## Di Luar Scope
-
-- Backend nyata.
-- Login QR WhatsApp nyata.
-- Automasi WhatsApp Web.
-- Validasi apakah nomor benar memiliki akun WhatsApp.
-- Normalisasi format nomor, kode negara, atau validasi format telepon.
-- Parsing CSV kompleks, termasuk header dan multi-kolom.
-- Ekspor hasil ke CSV, TXT, atau format lain.
-- Penyimpanan riwayat scan.
-- Akun pengguna, autentikasi server, atau role akses.
-- Parallel scan, retry, pembatalan scan, dan rate limiting backend.
-- Kirim pesan WhatsApp.
-
-## Batasan dan Privasi
-
-- Versi dummy memproses file dan nomor sepenuhnya lokal di extension.
-- Pengguna bertanggung jawab memastikan nomor yang diproses memiliki izin yang sah.
-- Integrasi produksi wajib memakai backend dan jalur resmi yang sesuai kebijakan WhatsApp serta aturan privasi yang berlaku.
-- Extension tidak boleh menyimpan isi nomor atau hasil scan permanen tanpa persetujuan dan kebutuhan produk yang jelas.
-
-## Struktur File Rencana
+Satu nomor per baris. Pakai country code tanpa tanda `+`.
 
 ```text
-manifest.json       Konfigurasi Chrome Extension Manifest V3 dan default popup
-popup/              Shell popup, tampilan, state sesi, dan simulasi scan
-icons/              Icon extension SVG dan PNG
-README.md           Dokumen scope ini
+6281234567890
+60123456789
+14155552671
 ```
 
-## Kontrak Backend Masa Depan
+Ditolak sebelum request:
 
-Versi produksi dapat mengganti bagian dummy dengan backend, tanpa mengubah flow UI utama.
+- Tanda `+`, spasi, huruf, atau karakter lain selain digit.
+- Digit pertama `0`.
+- Panjang kurang dari 8 atau lebih dari 15 digit.
 
-### Sesi QR
+Backend tetap menentukan validitas nomor negara dan status WhatsApp akhir.
 
-Backend perlu menyediakan:
+### Input Manual
 
-- Pembuatan sesi QR beserta `sessionId` dan data QR.
-- Status sesi: `pending`, `connected`, `expired`, atau `error`.
-- Cara pembaruan status: polling HTTP, Server-Sent Events, atau WebSocket.
-- Aksi logout atau reset sesi.
+Extension mengirim `multipart/form-data` dengan field `numbers` ke bulk endpoint.
 
-Contoh respons pembuatan sesi:
+### Upload File
 
-```json
-{
-  "sessionId": "session_123",
-  "qr": "data:image/png;base64,...",
-  "status": "pending"
-}
+- Format: `.txt` atau `.csv`.
+- Maksimal: 2 MB.
+- Satu nomor per baris.
+- File diupload hanya saat scan dimulai.
+
+## API
+
+Base URL staging:
+
+```text
+https://webscanner.djgroup-dev.com/api/v1/scan
 ```
 
-### Bulk Scan
+| Method | Path | Auth | Fungsi |
+|---|---|---|---|
+| `POST` | `/pairings` | Tidak ada | Buat QR pairing dengan body `{"vendor_code":"EXT"}`. |
+| `POST` | `/pairings/{pairingId}/qr` | `X-Pairing-Token` | Refresh QR. |
+| `GET` | `/pairings/{pairingId}` | `X-Pairing-Token` | Poll state pairing dan ambil `session_token` saat paired. |
+| `GET` | `/session` | Bearer session token | Verifikasi session saat popup dibuka. |
+| `DELETE` | `/session` | Bearer session token | Disconnect session backend. |
+| `POST` | `/check/bulk` | Bearer session token | Check daftar nomor atau file. |
 
-Backend perlu menerima daftar nilai nomor apa adanya dan mengembalikan hasil per item.
+Bulk response dirender dari `data.results`:
 
-Contoh request:
+- `has_whatsapp: true`: `On WhatsApp`.
+- `has_whatsapp: false`: `Not on WhatsApp`.
+- `error: "invalid_number"`: `Invalid`.
+- Error lain: `Failed`.
 
-```json
-{
-  "sessionId": "session_123",
-  "numbers": ["08123456789", "+628123456789"]
-}
+## Storage Dan Privasi
+
+- `sessionToken` disimpan di `chrome.storage.local` agar session bertahan setelah popup ditutup atau extension reload.
+- Pairing state sementara menyimpan ID, pairing token, dan expiry. QR base64 tidak disimpan persistent.
+- Nomor dan hasil scan hanya hidup di memory popup. Tidak disimpan persistent oleh extension.
+- Session token dihapus hanya setelah disconnect backend sukses atau backend menolak token dengan `401`/`403`.
+- Gunakan hanya nomor milik sendiri atau kontak dengan izin yang sah.
+
+## Security Hardening
+
+- Host permission dibatasi ke `https://webscanner.djgroup-dev.com/*`.
+- Tidak ada remote font atau dependency pihak ketiga.
+- QR hanya menerima `data:image/png;base64,`.
+- Semua hasil backend dirender memakai DOM API dan `textContent`.
+- Request pairing/session/QR timeout setelah 15 detik.
+- Request bulk check timeout setelah 120 detik.
+- Timeout dan error `5xx` tidak menghapus session token. Token dihapus hanya saat `401` atau `403`.
+
+## Batasan
+
+- Batas jumlah nomor bulk belum diketahui dari backend. Extension belum menerapkan client cap.
+- CSV hanya satu nomor per baris. Header, quoted field, dan multi-kolom tidak diparse.
+- Tidak ada ekspor hasil, riwayat scan, atau pembatalan bulk check.
+- Progress bulk bersifat indeterminate sampai backend mengembalikan respons final.
+
+## Struktur
+
+```text
+manifest.json       Chrome Extension config dan API host permission
+popup/popup.html    Struktur popup
+popup/popup.css     Tampilan popup
+popup/popup.js      Pairing, session, bulk check, dan state UI
+icons/              Icon extension
+document-api.json   OpenAPI backend
 ```
-
-Contoh hasil per nomor:
-
-```json
-{
-  "index": 0,
-  "number": "08123456789",
-  "status": "active"
-}
-```
-
-Status minimum backend:
-
-- `active`
-- `inactive`
-- `error`
-
-Detail batas batch, autentikasi extension, rate limit, retry, dan metode pembaruan progres ditetapkan setelah backend tersedia.
-
-## Kriteria Selesai Versi Dummy
-
-- Extension dapat dimuat sebagai unpacked extension di Chrome.
-- Klik ikon extension membuka halaman aplikasi.
-- Status `connected` tersimpan setelah simulasi dan bertahan setelah halaman dibuka ulang.
-- Reset sesi mengembalikan halaman login QR.
-- Input manual dan upload `.txt` atau `.csv` menghasilkan daftar nomor dari baris tidak kosong.
-- Scan dummy menampilkan hasil per nomor, progres, total, aktif, dan tidak aktif.
-- Tidak ada request jaringan saat menjalankan seluruh flow dummy.
