@@ -41,6 +41,7 @@ const progressTrack = document.querySelector('#progressTrack');
 const apiBase = 'https://webscanner.djgroup-dev.com/api/v1/scan';
 const pairingStorageKey = 'pairing';
 const sessionStorageKey = 'sessionToken';
+const maxFileSize = 2 * 1024 * 1024;
 let source = 'manual';
 let fileNumbers = [];
 let scanning = false;
@@ -103,8 +104,18 @@ function pairingError(error) {
   return error?.message || 'Pairing request failed. Try again.';
 }
 
-async function request(path, options = {}) {
-  const response = await fetch(`${apiBase}${path}`, options);
+async function request(path, { timeout = 15000, ...options } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  let response;
+  try {
+    response = await fetch(`${apiBase}${path}`, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('Request timed out. Try again.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(payload.message || `Request failed (${response.status}).`);
@@ -112,6 +123,10 @@ async function request(path, options = {}) {
     throw error;
   }
   return payload;
+}
+
+function validQr(qr) {
+  return typeof qr === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(qr);
 }
 
 function stopPairingPoll() {
@@ -146,6 +161,7 @@ function setPairingStatus(message) {
 }
 
 function showQr(qr) {
+  if (!validQr(qr)) throw new Error('Pairing response contains an invalid QR image.');
   qrCode.classList.remove('loading');
   qrImage.src = qr;
   qrImage.hidden = false;
@@ -187,9 +203,10 @@ async function refreshQr() {
       headers: { 'X-Pairing-Token': pairingToken },
     });
     const data = response.data;
-    if (!data?.qr || !data?.qr_expires_at) throw new Error('QR refresh response is missing QR data.');
+    if (!validQr(data?.qr) || !data?.qr_expires_at) throw new Error('QR refresh response is missing valid QR data.');
     if (!pairing || pairing.id !== pairingId) return;
-    pairing = { ...pairing, qr: data.qr, qrExpiresAt: data.qr_expires_at, expiresAt: data.expires_at };
+    const { qr: ignoredQr, ...pairingState } = pairing;
+    pairing = { ...pairingState, qrExpiresAt: data.qr_expires_at, expiresAt: data.expires_at };
     await chrome.storage.local.set({ [pairingStorageKey]: pairing });
     showQr(data.qr);
     setPairingStatus('Waiting for scan');
@@ -231,8 +248,9 @@ async function pollPairing() {
       return;
     }
     if (response.data?.qr_expires_at && Date.parse(response.data.qr_expires_at) > Date.parse(pairing.qrExpiresAt)) {
+      const { qr: ignoredQr, ...pairingState } = pairing;
       pairing = {
-        ...pairing,
+        ...pairingState,
         qrExpiresAt: response.data.qr_expires_at,
         expiresAt: response.data.expires_at || pairing.expiresAt,
       };
@@ -261,13 +279,12 @@ async function createPairing() {
       body: JSON.stringify({ vendor_code: 'EXT' }),
     });
     const data = response.data;
-    if (!data?.pairing_id || !data?.pairing_token || !data?.qr) {
+    if (!data?.pairing_id || !data?.pairing_token || !validQr(data?.qr)) {
       throw new Error('Pairing response is missing required data.');
     }
     pairing = {
       id: data.pairing_id,
       token: data.pairing_token,
-      qr: data.qr,
       qrExpiresAt: data.qr_expires_at,
       expiresAt: data.expires_at,
     };
@@ -330,14 +347,16 @@ function addResult(index, result) {
         ? 'Invalid'
         : 'Failed';
   const row = document.createElement('tr');
+  const indexCell = document.createElement('td');
   const numberCell = document.createElement('td');
+  const statusCell = document.createElement('td');
+  const statusBadge = document.createElement('span');
+  indexCell.textContent = index + 1;
   numberCell.textContent = result.phone || result.input;
-  row.innerHTML = `<td>${index + 1}</td>`;
-  row.append(numberCell);
-  row.insertAdjacentHTML(
-    'beforeend',
-    `<td><span class="status ${status}">${label}</span></td>`,
-  );
+  statusBadge.className = `status ${status}`;
+  statusBadge.textContent = label;
+  statusCell.append(statusBadge);
+  row.append(indexCell, numberCell, statusCell);
   resultsBody.append(row);
 }
 
@@ -394,6 +413,7 @@ async function scan() {
       method: 'POST',
       headers: { Authorization: `Bearer ${sessionToken}` },
       body: form,
+      timeout: 120000,
     });
     const data = response.data;
     if (!Array.isArray(data?.results)) throw new Error('Bulk check response is missing results.');
@@ -479,6 +499,15 @@ fileInput.addEventListener('change', async () => {
     renderCount();
     return;
   }
+  if (file.size > maxFileSize) {
+    fileInput.value = '';
+    fileNumbers = [];
+    fileLabel.textContent = 'Choose a .txt or .csv file';
+    fileStatus.textContent = 'File will be uploaded when scan starts.';
+    showError('Choose a file smaller than 2 MB.');
+    renderCount();
+    return;
+  }
   fileNumbers = (await file.text())
     .split(/\r?\n/)
     .filter((value) => value.trim());
@@ -514,16 +543,10 @@ chrome.storage.local.get([pairingStorageKey, sessionStorageKey], async (stored) 
     showView('qr');
     setConnectionStatus('disconnected');
     setPairingStatus('Restoring pairing');
-    if (pairing.qr && pairing.qrExpiresAt && Date.parse(pairing.qrExpiresAt) > Date.now()) {
-      showQr(pairing.qr);
-      startQrTimer();
-      pollPairing();
-    } else {
-      refreshQr().then(pollPairing).catch(async (error) => {
-        await clearPairing();
-        setPairingStatus(pairingError(error));
-      });
-    }
+    refreshQr().then(pollPairing).catch(async (error) => {
+      await clearPairing();
+      setPairingStatus(pairingError(error));
+    });
   } else if (pairing) {
     showView('qr');
     setConnectionStatus('disconnected');

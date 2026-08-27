@@ -1,6 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
-
-:root { font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif; color: #172021; background: #f7f8f5; }
+:root { font-family: ui-sans-serif, system-ui, sans-serif; color: #172021; background: #f7f8f5; }
 * { box-sizing: border-box; }
 body { width: 420px; min-height: 570px; margin: 0; }
 button, textarea, input { font: inherit; }
