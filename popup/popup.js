@@ -1,6 +1,10 @@
 import { request, validQr } from './api.js';
 import { createPairingController } from './pairing.js';
 
+if (new URLSearchParams(location.search).get('layout') === 'tab') {
+  document.body.classList.add('tab-layout');
+}
+
 const views = {
   qr: document.querySelector('#qrView'),
   input: document.querySelector('#inputView'),
@@ -300,6 +304,7 @@ resetButton.addEventListener('click', async () => {
     await chrome.storage.local.remove(sessionStorageKey);
     sessionToken = null;
     setConnectionStatus('disconnected');
+    showToast('WhatsApp disconnected. Scan QR to reconnect.', 'disconnected');
     showView('qr');
     pairing.create();
   } catch (error) {

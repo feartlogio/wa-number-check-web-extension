@@ -7,7 +7,7 @@ Chrome Extension Manifest V3 untuk pairing WhatsApp via QR dan bulk number check
 - Pairing WhatsApp memakai QR dari backend.
 - Refresh QR otomatis sebelum `qr_expires_at`.
 - Poll status pairing setiap 3 detik sampai backend mengembalikan `session_token`.
-- Simpan session token di `chrome.storage.local`; popup ditutup tidak logout.
+- Simpan session token di `chrome.storage.local`; tab ditutup tidak logout.
 - Disconnect memakai endpoint backend, lalu membuat pairing QR baru.
 - Check nomor lewat input manual atau file `.txt`/`.csv`.
 - Bulk check memakai loading state, hasil per nomor, statistik, error state, dan re-scan.
@@ -15,11 +15,23 @@ Chrome Extension Manifest V3 untuk pairing WhatsApp via QR dan bulk number check
 
 ## Jalankan
 
+### Chrome
+
 1. Buka `chrome://extensions`.
 2. Aktifkan Developer mode.
 3. Pilih **Load unpacked**.
 4. Pilih root repository ini.
-5. Klik icon Webscanner di toolbar.
+5. Klik icon Webscanner di toolbar. Extension membuka popup.
+
+### Firefox
+
+1. Jalankan `./package-firefox.sh` dari root repository.
+2. Buka `about:debugging#/runtime/this-firefox`.
+3. Klik **Load Temporary Add-on**.
+4. Pilih `dist/firefox/manifest.json`.
+5. Klik icon Webscanner di toolbar. Extension membuka halaman Webscanner pada tab baru agar file picker tetap terbuka.
+
+Firefox temporary add-on menggunakan `background.scripts` untuk membuka tab. Chrome memakai `default_popup` tanpa background worker. Kedua browser perlu manifest terpisah.
 
 Setelah perubahan source, klik reload pada kartu extension di `chrome://extensions`.
 
@@ -77,7 +89,7 @@ https://webscanner.djgroup-dev.com/api/v1/scan
 | `POST` | `/pairings` | Tidak ada | Buat QR pairing dengan body `{"vendor_code":"EXT"}`. |
 | `POST` | `/pairings/{pairingId}/qr` | `X-Pairing-Token` | Refresh QR. |
 | `GET` | `/pairings/{pairingId}` | `X-Pairing-Token` | Poll state pairing dan ambil `session_token` saat paired. |
-| `GET` | `/session` | Bearer session token | Verifikasi session saat popup dibuka. |
+| `GET` | `/session` | Bearer session token | Verifikasi session saat halaman dibuka. |
 | `DELETE` | `/session` | Bearer session token | Disconnect session backend. |
 | `POST` | `/check/bulk` | Bearer session token | Check daftar nomor atau file. |
 
@@ -90,9 +102,9 @@ Bulk response dirender dari `data.results`:
 
 ## Storage Dan Privasi
 
-- `sessionToken` disimpan di `chrome.storage.local` agar session bertahan setelah popup ditutup atau extension reload.
+- `sessionToken` disimpan di `chrome.storage.local` agar session bertahan setelah tab ditutup atau extension reload.
 - Pairing state sementara menyimpan ID, pairing token, dan expiry. QR base64 tidak disimpan persistent.
-- Nomor dan hasil scan hanya hidup di memory popup. Tidak disimpan persistent oleh extension.
+- Nomor dan hasil scan hanya hidup di memory halaman. Tidak disimpan persistent oleh extension.
 - Session token dihapus hanya setelah disconnect backend sukses atau backend menolak token dengan `401`/`403`.
 - Gunakan hanya nomor milik sendiri atau kontak dengan izin yang sah.
 
@@ -116,9 +128,10 @@ Bulk response dirender dari `data.results`:
 ## Struktur
 
 ```text
-manifest.json       Chrome Extension config dan API host permission
-popup/popup.html    Struktur popup
-popup/popup.css     Tampilan popup
+manifest.json       Chrome Extension config, action, dan API host permission
+background.js        Membuka halaman Webscanner saat Firefox action diklik
+popup/popup.html    Struktur halaman Webscanner
+popup/popup.css     Tampilan halaman Webscanner
 popup/api.js         Request API, timeout, dan validasi QR
 popup/pairing.js     Pairing QR, refresh, countdown, dan polling
 popup/popup.js       DOM binding, session, bulk check, dan state UI
